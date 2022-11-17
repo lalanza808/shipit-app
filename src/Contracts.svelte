@@ -6,12 +6,8 @@
 
   const nft = '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9';
   const sendit = '0x0165878A594ca255338adfa4d48449f69242Eb8F';
-  const customChain = {
-    customChain: {
-      networkId: $chainId, 
-      chainId: $chainId
-    }
-  }
+  const to = '0x7c83E906aDD18C093B4B01ED40b6BCb25d348ED9';
+  
   let gasLimit = 0;
   let si_gasLimit = 0;
 
@@ -24,17 +20,13 @@
     let recipients = [];
     for (let i = 0; i < 10; i++) {
         tokenIndexes[i] = i + 1;
-        recipients[i] = '0x653D2d1D10c79017b2eA5F5a6F02D9Ab6e725395';
+        recipients[i] = to;
     }
-    let i = await $contracts.nft.methods.isApprovedForAll($selectedAccount, sendit).call();
+    let i = await $contracts.nft.methods.isApprovedForAll($selectedAccount, sendit).call({from: $selectedAccount});
     if (!i) {
-      await $contracts.nft.methods.setApprovalForAll(sendit, true).send({
-        from: $selectedAccount,
-        chainId: $chainId,
-        
-      });
+      await $contracts.nft.methods.setApprovalForAll(sendit, true).send({from: $selectedAccount});
     }
-    await $contracts.sendit.methods.contractBulkTransfer(nft, tokenIndexes, recipients, false).estimateGas({from: $selectedAccount, common: customChain}, function(err, gas){
+    await $contracts.sendit.methods.contractBulkTransfer(nft, tokenIndexes, recipients, false).estimateGas({from: $selectedAccount}, function(err, gas){
       si_gasLimit += gas;
     });
   }
@@ -42,7 +34,7 @@
   const estimateSTF = async () => {
     gasLimit = 0;
     for (let i = 0; i < 10; i++) {
-      await $contracts.nft.methods.safeTransferFrom($selectedAccount, '0x653D2d1D10c79017b2eA5F5a6F02D9Ab6e725395', i + 1).estimateGas({from: $selectedAccount}, function(err, gas){
+      await $contracts.nft.methods.safeTransferFrom($selectedAccount, to, i + 1).estimateGas({from: $selectedAccount}, function(err, gas){
         gasLimit += gas;
       });
     }
