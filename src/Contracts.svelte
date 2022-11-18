@@ -135,12 +135,23 @@
     window.scrollTo(0, document.body.scrollHeight);
   }
 
+  function deriveTokenTotals(recipients, tokens) {
+    let totals = {
+      addresses: [],
+      tokenIds: [],
+      amounts: []
+    };
+    for (let i = 0; i < recipients.length; i++) {
+      //
+    }
+  }
+
   async function estimateCBT(recipients, tokens, isERC1155) {
     si_gasLimit = 0;
     // TODO - erc1155 batching
     let fee = await $contracts.shipit.methods.usageFee().call();
     if (isERC1155) {
-      //
+      
     } else {
       await $contracts.shipit.methods.erc721BulkTransfer(contractAddress, recipients, tokens).estimateGas({from: $selectedAccount, value: fee * recipients.length}, function(err, gas){
         si_gasLimit += gas;
