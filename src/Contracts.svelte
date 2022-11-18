@@ -11,18 +11,26 @@
   let contractAddress = '';
   let contractApproved = true;
   let checked = false;
-  let gasCalculation = '';
+  let checksPending = false;
+  let gasCalculation = [];
   let selectedStandard = 1;
   let tokenStandards = [
     { id: 1, text: 'ERC-721' },
     { id: 2, text: 'ERC-1155' }
   ]
   
-  let amt = 10;
   let gasLimit = 0;
   let si_gasLimit = 0;
 
   evm.attachContract('sendit', sendit, SendIt.abi);
+
+  function clearMessages() {
+    gasCalculation = [];
+    checked = false;
+    checksPending = false;
+    errorMessage = '';
+    successMessage = '';
+  }
 
   const approveSendIt = async () => {
     await $contracts.nft.methods.setApprovalForAll(sendit, true).send({from: $selectedAccount});
@@ -38,6 +46,7 @@
   const performCheck = async () => {
     let tokenIds = [];
     let recipients = [];
+    checksPending = true;
     errorMessage = '';
 
     // Determine ABI
@@ -52,13 +61,14 @@
       $web3.utils.toChecksumAddress(contractAddress)
     } catch {
       errorMessage = 'Invalid contract address supplied';
+      checksPending = false;
       return;
     }
 
     // Check textarea syntax
     let info = document.getElementById('recipientInfo').value;
     let lines = info.split(/(\s+)/);
-    if (lines.length < 2) { errorMessage = 'Invalid recipient info.'; return; }
+    if (lines.length < 2) { errorMessage = 'Invalid recipient info; should be sending 2 or more tokens'; checksPending = false; return; }
     for (let i = 0; i < lines.length; i++) {
       let line = lines[i].split(',');
       if (line.length == 2) {
@@ -69,6 +79,7 @@
           recipients.push(recipient);
         } catch {
           errorMessage = `Invalid recipient address supplied (line ${i + 1})`;
+          checksPending = false;
           return;
         }
 
@@ -81,6 +92,7 @@
             tokenIds.push(tokenId);
           } catch(e) {
             errorMessage = e;
+            checksPending = false;
             return;
           }
         } else {
@@ -91,6 +103,7 @@
             tokenIds.push(tokenId);
           } catch(e) {
             errorMessage = e;
+            checksPending = false;
             return;
           }
         }
@@ -103,18 +116,20 @@
       let approved = await $contracts.nft.methods.isApprovedForAll($selectedAccount, sendit).call();
       if (!approved) {
         errorMessage = 'SendIt requires approval to bulk transfer tokens; click the "Approve" button below';
+        checksPending = false;
         contractApproved = false;
         return;
       }
     } catch {
       errorMessage = 'Unable to check contract approvals';
+      checksPending = false;
       return;
     }
 
-    // Check gas consumption forecasts
+    // Show gas consumption forecasts
     await estimateGas(recipients, tokenIds);
     
-    // Show results
+    checked = true;
   }
 
   async function estimateCBT(recipients, tokens) {
@@ -138,14 +153,29 @@
     if (recipients.length != tokens.length) { errorMessage = 'Invalid recipient/token IDs provided; please review'; return; }
     await estimateCBT(recipients, tokens);
     await estimateSTF(recipients, tokens);
-    // let gasPrice = await $web3.eth.getGasPrice();
-    let gasPrice = 20000000000;
-    let gasCostEth = await $web3.utils.fromWei((gasPrice * gasLimit).toString());
+    let gasPrice = await $web3.eth.getGasPrice();
+    // let gasPrice = 50000000000;
+    let gasPriceGwei = await $web3.utils.fromWei(gasPrice.toString(), 'gwei');
+    let gasCostWei = gasPrice * gasLimit;
+    let gasCostEth = await $web3.utils.fromWei(gasCostWei.toString());
     let feeWei = await $contracts.sendit.methods.usageFee().call();
     let totalFeeWei = feeWei * recipients.length;
+    let totalFeeEth = $web3.utils.fromWei(totalFeeWei.toString());
     let si_gasCostWei = gasPrice * si_gasLimit + totalFeeWei;
     let si_gasCostEth = await $web3.utils.fromWei(si_gasCostWei.toString());
-    gasCalculation = `Transferring each token individual would require ${gasLimit} gas (${gasCostEth} Ξ). SendIt can do it for ${si_gasLimit} gas + a fee (${si_gasCostEth} Ξ).`;
+    let diffWei = gasCostWei - si_gasCostWei;
+    let diffEth = await $web3.utils.fromWei(diffWei.toString());
+    let diffPerc = 100 - ((si_gasCostWei / gasCostWei) * 100);
+    gasCalculation.push(`Current network gas price is ~${gasPriceGwei} gwei.`);
+    gasCalculation.push(`Transferring ${recipients.length} tokens individually would cost ~${gasCostEth} Ξ (${gasLimit} gas).`);
+    gasCalculation.push(`SendIt can bulk transfer ${recipients.length} tokens for ${si_gasCostEth} Ξ (${si_gasLimit} gas + a small fee of ${totalFeeEth} Ξ).`);
+    if (diffPerc < 0) {
+      gasCalculation.push(`That is an additional cost of ${diffEth * -1} Ξ to transfer in one go to save you the time`);
+    } else {
+      gasCalculation.push(`That is a savings of ${diffEth} Ξ (saved ~${Math.round(diffPerc)}%)`);
+    }
+    
+    gasCalculation = gasCalculation; // trigger recheck
   }
 
 </script>
@@ -155,13 +185,13 @@
 {#if $selectedAccount}
 <form>
   <div class="row">
-    <div class="six columns">
+    <div class="ten columns">
       <label for="contractAddress">Contract Address</label>
       <input class="u-full-width" type="text" placeholder="0x..." id="contractAddress" bind:value={contractAddress}>
     </div>
-    <div class="six columns">
+    <div class="two columns">
       <label for="tokenStandard">Token Standard</label>
-      <select class="u-full-width" id="tokenStandard" bind:value={selectedStandard} on:change="{() => checked = false}">
+      <select class="u-full-width" id="tokenStandard" bind:value={selectedStandard} on:change={clearMessages}>
         {#each tokenStandards as s}
           <option value={s.id}>
             {s.text}
@@ -171,13 +201,15 @@
     </div>
   </div>
   <label for="recipientInfo">Recipient Address, Token ID</label>
-  <textarea class="u-full-width" placeholder="0x653D2d1D10c79017b2eA5F5a6F02D9Ab6e725395,90
-0x653D2d1D10c79017b2eA5F5a6F02D9Ab6e725395,1775" id="recipientInfo"></textarea>
+  <textarea class="u-full-width" style="height: 10em;" placeholder="0x653D2d1D10c79017b2eA5F5a6F02D9Ab6e725395,90
+0x653D2d1D10c79017b2eA5F5a6F02D9Ab6e725395,1775" id="recipientInfo" on:change={clearMessages}></textarea>
   <br />
   {#if checked}
     <input class="button-primary" type="submit" value="Transfer">
   {:else}
-    <input class="button" type="submit" value="Check" on:click|preventDefault={performCheck}>
+    <button class="button" disabled={checksPending} on:click|preventDefault={performCheck}>
+      {#if checksPending}checking...{:else}Check{/if}
+    </button>
   {/if}
   {#if !contractApproved}
     <button class="button-primary" on:click|preventDefault={approveSendIt}>Approve</button>
@@ -185,23 +217,29 @@
 </form>
 {/if}
 
-{#if gasCalculation}
-  <p>{gasCalculation}</p>
+<ul>
+  {#each gasCalculation as m, i}
+    {#if i == 3}
+      <li class="successMessage">{m}</li>
+    {:else}
+      <li>{m}</li>
+    {/if}
+  {/each}
+</ul>
+
+{#if errorMessage}
+<p class="errorMessage">{errorMessage}</p>
 {/if}
 
 {#if errorMessage}
-<p id="errorMessage">{errorMessage}</p>
-{/if}
-
-{#if errorMessage}
-<p id="successMessage">{successMessage}</p>
+<p class="successMessage">{successMessage}</p>
 {/if}
 
 <style>
-  #errorMessage {
+  .errorMessage {
     color: red;
   }
-  #successMessage {
+  .successMessage {
     color: green;
   }
 </style>
