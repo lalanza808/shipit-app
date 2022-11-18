@@ -20,17 +20,13 @@
   }
 </script>
 
-<div class="container">
-  <div class="row">
-    <div class="column mt-2">
-      {#if !$selectedAccount}
-        <button class="button" disabled={pending} on:click={connect}>{#if pending}connecting...{:else}Connect{/if}</button>
-      {:else}
-        <p>
-          Connected {$selectedAccount}
-        </p>
-        <button class="button" on:click={disconnect}>Disconnect</button>
-      {/if}
-    </div>
-  </div>
-</div>
+{#if !$selectedAccount}
+  <button class="button" disabled={pending} on:click={connect}>{#if pending}connecting...{:else}Connect{/if}</button>
+{:else}
+  <p>
+    Connected {$selectedAccount}
+    <br /><br />
+    <button class="button" on:click={disconnect}>Disconnect</button>
+  </p>
+  
+{/if}

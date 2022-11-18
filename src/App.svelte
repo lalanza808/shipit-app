@@ -7,23 +7,25 @@
 </script>
 
 <main>
-
   <div class="container">
     <div class="row">
       <div class="column">
         <img src={ethereumLogo} class="logo ethereum" alt="Ethereum Logo" />
         <h1>SendIt!</h1>
-        <p>A bulk NFT transfer utility made for transferring ERC-721 and ERC-1155 tokens between accounts easily.</p>
+        <p>
+          A bulk NFT transfer utility made for transferring ERC-721 and ERC-1155 tokens between accounts easily.
+          <br />
+          Made by <a href="https://lzahq.tech" target="_blank">lza_menace</a> and the <a href="https://art101.io" target="_blank">Art101</a> team.
+        </p>
+        <Providers />
+      </div>
+    </div>
+    <div class="row">
+      <div class="column">
+        <Contracts />
       </div>
     </div>
   </div>
-
-  <div class="card">
-    <Providers />
-  </div>
-
-  <Contracts />
-
 </main>
 
 <style>
