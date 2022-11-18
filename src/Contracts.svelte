@@ -46,6 +46,7 @@
   const performCheck = async () => {
     let tokenIds = [];
     let recipients = [];
+    let isERC1155 = false;
     checksPending = true;
     errorMessage = '';
 
@@ -54,6 +55,7 @@
       evm.attachContract('nft', contractAddress, IERC721.abi);
     } else {
       evm.attachContract('nft', contractAddress, IERC1155.abi);
+      isERC1155 = true;
     }
     
     // Check the contract is valid
@@ -99,7 +101,7 @@
           try {
             let balance = await $contracts.nft.methods.balanceOf($selectedAccount, tokenId).call();
             if (Number(balance) < 1) { throw new Error(`You must own the token in order to send it (token ${tokenId}, balance ${balance})`); }
-            if (tokenIds.length < Number(balance)) { throw new Error(`Provided more tokens than balance(token ${tokenId}, balance ${balance})`); }
+            if (Number(tokenIds.length) > Number(balance)) { throw new Error(`Provided more tokens than balance (token ${tokenId}, balance ${balance})`); }
             tokenIds.push(tokenId);
           } catch(e) {
             errorMessage = e;
@@ -127,34 +129,42 @@
     }
 
     // Show gas consumption forecasts
-    await estimateGas(recipients, tokenIds);
+    await estimateGas(recipients, tokenIds, isERC1155);
     
     checked = true;
   }
 
-  async function estimateCBT(recipients, tokens) {
+  async function estimateCBT(recipients, tokens, isERC1155) {
     si_gasLimit = 0;
     let fee = await $contracts.sendit.methods.usageFee().call();
-    await $contracts.sendit.methods.contractBulkTransfer(contractAddress, tokens, recipients, false).estimateGas({from: $selectedAccount, value: fee * recipients.length}, function(err, gas){
+    console.log(recipients)
+    console.log(tokens)
+    await $contracts.sendit.methods.contractBulkTransfer(contractAddress, tokens, recipients, isERC1155).estimateGas({from: $selectedAccount, value: fee * recipients.length}, function(err, gas){
       si_gasLimit += gas;
     });
   }
 
-  async function estimateSTF(recipients, tokens) {
+  async function estimateSTF(recipients, tokens, isERC1155) {
     gasLimit = 0;
     for (let i = 0; i < recipients.length; i++) {
-      await $contracts.nft.methods.safeTransferFrom($selectedAccount, recipients[i], tokens[i]).estimateGas({from: $selectedAccount}, function(err, gas){
-        gasLimit += gas;
-      });
+      if (isERC1155) {
+        await $contracts.nft.methods.safeTransferFrom($selectedAccount, recipients[i], tokens[i], 1, "").estimateGas({from: $selectedAccount}, function(err, gas){
+          gasLimit += gas;
+        });
+      } else {
+        await $contracts.nft.methods.safeTransferFrom($selectedAccount, recipients[i], tokens[i]).estimateGas({from: $selectedAccount}, function(err, gas){
+          gasLimit += gas;
+        });
+      }
     }
   }
 
-  async function estimateGas(recipients, tokens) {
+  async function estimateGas(recipients, tokens, isERC1155) {
     if (recipients.length != tokens.length) { errorMessage = 'Invalid recipient/token IDs provided; please review'; return; }
-    await estimateCBT(recipients, tokens);
-    await estimateSTF(recipients, tokens);
+    await estimateCBT(recipients, tokens, isERC1155);
+    await estimateSTF(recipients, tokens, isERC1155);
     let gasPrice = await $web3.eth.getGasPrice();
-    // let gasPrice = 50000000000;
+    // let gasPrice = 50000000000; // override for testing
     let gasPriceGwei = await $web3.utils.fromWei(gasPrice.toString(), 'gwei');
     let gasCostWei = gasPrice * gasLimit;
     let gasCostEth = await $web3.utils.fromWei(gasCostWei.toString());
@@ -174,7 +184,6 @@
     } else {
       gasCalculation.push(`That is a savings of ${diffEth} Ξ (saved ~${Math.round(diffPerc)}%)`);
     }
-    
     gasCalculation = gasCalculation; // trigger recheck
   }
 
