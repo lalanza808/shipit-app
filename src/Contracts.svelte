@@ -5,7 +5,7 @@
   import IERC1155 from '@openzeppelin/contracts/build/contracts/IERC1155.json';
   import SendIt from './lib/sendit.json';
 
-  const sendit = '0x0165878A594ca255338adfa4d48449f69242Eb8F';
+  const sendit = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
   let errorMessage = '';
   let successMessage = '';
   let contractAddress = '';
@@ -119,7 +119,8 @@
 
   async function estimateCBT(recipients, tokens) {
     si_gasLimit = 0;
-    await $contracts.sendit.methods.contractBulkTransfer(contractAddress, tokens, recipients, false).estimateGas({from: $selectedAccount}, function(err, gas){
+    let fee = await $contracts.sendit.methods.usageFee().call();
+    await $contracts.sendit.methods.contractBulkTransfer(contractAddress, tokens, recipients, false).estimateGas({from: $selectedAccount, value: fee * recipients.length}, function(err, gas){
       si_gasLimit += gas;
     });
   }
@@ -137,10 +138,14 @@
     if (recipients.length != tokens.length) { errorMessage = 'Invalid recipient/token IDs provided; please review'; return; }
     await estimateCBT(recipients, tokens);
     await estimateSTF(recipients, tokens);
-    let gasPrice = await $web3.eth.getGasPrice();
+    // let gasPrice = await $web3.eth.getGasPrice();
+    let gasPrice = 20000000000;
     let gasCostEth = await $web3.utils.fromWei((gasPrice * gasLimit).toString());
-    let si_gasCostEth = await $web3.utils.fromWei((gasPrice * si_gasLimit).toString());
-    gasCalculation = `Transferring each token individual would require ${gasLimit} gas (${gasCostEth} Ξ). SendIt can do it for ${si_gasLimit} gas (${si_gasCostEth} Ξ).`;
+    let feeWei = await $contracts.sendit.methods.usageFee().call();
+    let totalFeeWei = feeWei * recipients.length;
+    let si_gasCostWei = gasPrice * si_gasLimit + totalFeeWei;
+    let si_gasCostEth = await $web3.utils.fromWei(si_gasCostWei.toString());
+    gasCalculation = `Transferring each token individual would require ${gasLimit} gas (${gasCostEth} Ξ). SendIt can do it for ${si_gasLimit} gas + a fee (${si_gasCostEth} Ξ).`;
   }
 
 </script>
