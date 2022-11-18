@@ -8,7 +8,7 @@
   let errorMessage = '';
   let successMessage = '';
   let contractAddress = '';
-  let contractApproved = false;
+  let contractApproved = true;
   let checked = false;
   let selectedStandard = 1;
   let tokenStandards = [
@@ -27,10 +27,21 @@
   // evm.attachContract('nft', contractAddress, IERC721.abi);
   // evm.attachContract('sendit', sendit, SendIt.abi);
 
+  const approveSendIt = async () => {
+    await $contracts.nft.methods.setApprovalForAll(sendit, true).send({from: $selectedAccount});
+  }
+
   const performCheck = async () => {
     let tokenIds = [];
     errorMessage = '';
 
+    // Determine ABI
+    if (selectedStandard == 1) {
+      evm.attachContract('nft', contractAddress, IERC721.abi);
+    } else {
+      evm.attachContract('nft', contractAddress, IERC1155.abi);
+    }
+    
     // Check the contract is valid
     try {
       $web3.utils.toChecksumAddress(contractAddress)
@@ -38,24 +49,12 @@
       errorMessage = 'Invalid contract address supplied';
       return;
     }
-    // Check approval on the contract
-    if (selectedStandard == 1) {
-      evm.attachContract('nft', contractAddress, IERC721.abi);
-    } else {
-      evm.attachContract('nft', contractAddress, IERC1155.abi);
-    }
-    try {
-      let r = await $contracts.nft.methods.isApprovedForAll($selectedAccount, sendit);
-      console.log(r);
-    } catch {
-      errorMessage = 'Unable to check contract approvals';
-      return;
-    }
+
+    
 
     // Check textarea syntax
     let info = document.getElementById('recipientInfo').value;
     let lines = info.split(/(\s+)/);
-    console.log(lines);
     if (lines.length < 2) { errorMessage = 'Invalid recipient info.'; return; }
     for (let i = 0; i < lines.length; i++) {
       let line = lines[i].split(',');
@@ -68,6 +67,7 @@
           errorMessage = `Invalid recipient address supplied (line ${i + 1})`;
           return;
         }
+
         // Check ownership of tokens
         if (selectedStandard == 1) {
           try {
@@ -93,6 +93,19 @@
         
 
       }
+    }
+
+    // Check approval on the contract
+    try {
+      let approved = await $contracts.nft.methods.isApprovedForAll($selectedAccount, sendit).call();
+      if (!approved) {
+        errorMessage = 'SendIt requires approval to bulk transfer tokens; click the "Approve" button below';
+        contractApproved = false;
+        return;
+      }
+    } catch {
+      errorMessage = 'Unable to check contract approvals';
+      return;
     }
     
     // Check gas consumption forecasts
@@ -133,6 +146,7 @@
 </script>
 
 
+
 {#if $selectedAccount}
 <form>
   <div class="row">
@@ -159,6 +173,9 @@
     <input class="button-primary" type="submit" value="Transfer">
   {:else}
     <input class="button" type="submit" value="Check" on:click|preventDefault={performCheck}>
+  {/if}
+  {#if !contractApproved}
+    <button class="button-primary" on:click|preventDefault={approveSendIt}>Approve</button>
   {/if}
 </form>
 {/if}
