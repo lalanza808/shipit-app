@@ -3,9 +3,9 @@
   import { defaultEvmStores as evm, selectedAccount, contracts, web3 } from 'svelte-web3';
   import IERC721 from '@openzeppelin/contracts/build/contracts/IERC721.json';
   import IERC1155 from '@openzeppelin/contracts/build/contracts/IERC1155.json';
-  import SendIt from './lib/sendit.json';
+  import ShipIt from './lib/shipit.json';
 
-  const sendit = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
+  const shipit = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
   let errorMessage = '';
   let successMessage = '';
   let contractAddress = '';
@@ -22,7 +22,7 @@
   let gasLimit = 0;
   let si_gasLimit = 0;
 
-  evm.attachContract('sendit', sendit, SendIt.abi);
+  evm.attachContract('shipit', shipit, ShipIt.abi);
 
   function clearMessages() {
     gasCalculation = [];
@@ -32,14 +32,14 @@
     successMessage = '';
   }
 
-  const approveSendIt = async () => {
-    await $contracts.nft.methods.setApprovalForAll(sendit, true).send({from: $selectedAccount});
+  const approveShipIt = async () => {
+    await $contracts.nft.methods.setApprovalForAll(shipit, true).send({from: $selectedAccount});
   }
 
   const isApproved = async () => {
-    return await $contracts.nft.methods.isApprovedForAll($selectedAccount, sendit).call({from: $selectedAccount});
+    return await $contracts.nft.methods.isApprovedForAll($selectedAccount, shipit).call({from: $selectedAccount});
     // if (!i) {
-    //   await $contracts.nft.methods.setApprovalForAll(sendit, true).send({from: $selectedAccount});
+    //   await $contracts.nft.methods.setApprovalForAll(shipit, true).send({from: $selectedAccount});
     // }
   }
 
@@ -115,9 +115,9 @@
     
     // Check approval on the contract
     try {
-      let approved = await $contracts.nft.methods.isApprovedForAll($selectedAccount, sendit).call();
+      let approved = await $contracts.nft.methods.isApprovedForAll($selectedAccount, shipit).call();
       if (!approved) {
-        errorMessage = 'SendIt requires approval to bulk transfer tokens; click the "Approve" button below';
+        errorMessage = 'ShipIt requires approval to bulk transfer tokens; click the "Approve" button below';
         checksPending = false;
         contractApproved = false;
         return;
@@ -132,20 +132,25 @@
     await estimateGas(recipients, tokenIds, isERC1155);
     
     checked = true;
+    window.scrollTo(0, document.body.scrollHeight);
   }
 
   async function estimateCBT(recipients, tokens, isERC1155) {
     si_gasLimit = 0;
-    let fee = await $contracts.sendit.methods.usageFee().call();
-    console.log(recipients)
-    console.log(tokens)
-    await $contracts.sendit.methods.contractBulkTransfer(contractAddress, tokens, recipients, isERC1155).estimateGas({from: $selectedAccount, value: fee * recipients.length}, function(err, gas){
-      si_gasLimit += gas;
-    });
+    // TODO - erc1155 batching
+    let fee = await $contracts.shipit.methods.usageFee().call();
+    if (isERC1155) {
+      //
+    } else {
+      await $contracts.shipit.methods.erc721BulkTransfer(contractAddress, recipients, tokens).estimateGas({from: $selectedAccount, value: fee * recipients.length}, function(err, gas){
+        si_gasLimit += gas;
+      });
+    }
   }
 
   async function estimateSTF(recipients, tokens, isERC1155) {
     gasLimit = 0;
+    // TODO - erc1155 batching
     for (let i = 0; i < recipients.length; i++) {
       if (isERC1155) {
         await $contracts.nft.methods.safeTransferFrom($selectedAccount, recipients[i], tokens[i], 1, "").estimateGas({from: $selectedAccount}, function(err, gas){
@@ -164,11 +169,11 @@
     await estimateCBT(recipients, tokens, isERC1155);
     await estimateSTF(recipients, tokens, isERC1155);
     let gasPrice = await $web3.eth.getGasPrice();
-    // let gasPrice = 50000000000; // override for testing
+    // gasPrice = 15000000000; // override for testing
     let gasPriceGwei = await $web3.utils.fromWei(gasPrice.toString(), 'gwei');
     let gasCostWei = gasPrice * gasLimit;
     let gasCostEth = await $web3.utils.fromWei(gasCostWei.toString());
-    let feeWei = await $contracts.sendit.methods.usageFee().call();
+    let feeWei = await $contracts.shipit.methods.usageFee().call();
     let totalFeeWei = feeWei * recipients.length;
     let totalFeeEth = $web3.utils.fromWei(totalFeeWei.toString());
     let si_gasCostWei = gasPrice * si_gasLimit + totalFeeWei;
@@ -178,7 +183,7 @@
     let diffPerc = 100 - ((si_gasCostWei / gasCostWei) * 100);
     gasCalculation.push(`Current network gas price is ~${gasPriceGwei} gwei.`);
     gasCalculation.push(`Transferring ${recipients.length} tokens individually would cost ~${gasCostEth} Ξ (${gasLimit} gas).`);
-    gasCalculation.push(`SendIt can bulk transfer ${recipients.length} tokens for ${si_gasCostEth} Ξ (${si_gasLimit} gas + a small fee of ${totalFeeEth} Ξ).`);
+    gasCalculation.push(`ShipIt can bulk transfer ${recipients.length} tokens for ${si_gasCostEth} Ξ (${si_gasLimit} gas + a small fee of ${totalFeeEth} Ξ).`);
     if (diffPerc < 0) {
       gasCalculation.push(`That is an additional cost of ${diffEth * -1} Ξ to transfer in one go to save you the time`);
     } else {
@@ -221,7 +226,7 @@
     </button>
   {/if}
   {#if !contractApproved}
-    <button class="button-primary" on:click|preventDefault={approveSendIt}>Approve</button>
+    <button class="button-primary" on:click|preventDefault={approveShipIt}>Approve</button>
   {/if}
 </form>
 {/if}
