@@ -5,34 +5,39 @@
   import IERC1155 from '@openzeppelin/contracts/build/contracts/IERC1155.json';
   import SendIt from './lib/sendit.json';
 
+  const sendit = '0x0165878A594ca255338adfa4d48449f69242Eb8F';
   let errorMessage = '';
   let successMessage = '';
   let contractAddress = '';
   let contractApproved = true;
   let checked = false;
+  let gasCalculation = '';
   let selectedStandard = 1;
   let tokenStandards = [
     { id: 1, text: 'ERC-721' },
     { id: 2, text: 'ERC-1155' }
   ]
   
-  // 0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9
-  const sendit = '0x0165878A594ca255338adfa4d48449f69242Eb8F';
-  // const to = '0x7c83E906aDD18C093B4B01ED40b6BCb25d348ED9';
-  
   let amt = 10;
   let gasLimit = 0;
   let si_gasLimit = 0;
 
-  // evm.attachContract('nft', contractAddress, IERC721.abi);
-  // evm.attachContract('sendit', sendit, SendIt.abi);
+  evm.attachContract('sendit', sendit, SendIt.abi);
 
   const approveSendIt = async () => {
     await $contracts.nft.methods.setApprovalForAll(sendit, true).send({from: $selectedAccount});
   }
 
+  const isApproved = async () => {
+    return await $contracts.nft.methods.isApprovedForAll($selectedAccount, sendit).call({from: $selectedAccount});
+    // if (!i) {
+    //   await $contracts.nft.methods.setApprovalForAll(sendit, true).send({from: $selectedAccount});
+    // }
+  }
+
   const performCheck = async () => {
     let tokenIds = [];
+    let recipients = [];
     errorMessage = '';
 
     // Determine ABI
@@ -50,8 +55,6 @@
       return;
     }
 
-    
-
     // Check textarea syntax
     let info = document.getElementById('recipientInfo').value;
     let lines = info.split(/(\s+)/);
@@ -62,7 +65,8 @@
         let recipient = line[0];
         let tokenId = line[1];
         try {
-          $web3.utils.toChecksumAddress(recipient)
+          $web3.utils.toChecksumAddress(recipient);
+          recipients.push(recipient);
         } catch {
           errorMessage = `Invalid recipient address supplied (line ${i + 1})`;
           return;
@@ -90,11 +94,10 @@
             return;
           }
         }
-        
 
       }
     }
-
+    
     // Check approval on the contract
     try {
       let approved = await $contracts.nft.methods.isApprovedForAll($selectedAccount, sendit).call();
@@ -107,41 +110,38 @@
       errorMessage = 'Unable to check contract approvals';
       return;
     }
-    
+
     // Check gas consumption forecasts
+    await estimateGas(recipients, tokenIds);
+    
     // Show results
   }
 
-  // const estimateCBT = async () => {
-  //   si_gasLimit = 0;
-  //   let tokenIndexes = [];
-  //   let recipients = [];
-  //   for (let i = 0; i < amt; i++) {
-  //       tokenIndexes[i] = i + 1;
-  //       recipients[i] = to;
-  //   }
-  //   let i = await $contracts.nft.methods.isApprovedForAll($selectedAccount, sendit).call({from: $selectedAccount});
-  //   if (!i) {
-  //     await $contracts.nft.methods.setApprovalForAll(sendit, true).send({from: $selectedAccount});
-  //   }
-  //   await $contracts.sendit.methods.contractBulkTransfer(nft, tokenIndexes, recipients, false).estimateGas({from: $selectedAccount}, function(err, gas){
-  //     si_gasLimit += gas;
-  //   });
-  // }
+  async function estimateCBT(recipients, tokens) {
+    si_gasLimit = 0;
+    await $contracts.sendit.methods.contractBulkTransfer(contractAddress, tokens, recipients, false).estimateGas({from: $selectedAccount}, function(err, gas){
+      si_gasLimit += gas;
+    });
+  }
 
-  // const estimateSTF = async () => {
-  //   gasLimit = 0;
-  //   for (let i = 0; i < amt; i++) {
-  //     await $contracts.nft.methods.safeTransferFrom($selectedAccount, to, i + 1).estimateGas({from: $selectedAccount}, function(err, gas){
-  //       gasLimit += gas;
-  //     });
-  //   }
-  // }
+  async function estimateSTF(recipients, tokens) {
+    gasLimit = 0;
+    for (let i = 0; i < recipients.length; i++) {
+      await $contracts.nft.methods.safeTransferFrom($selectedAccount, recipients[i], tokens[i]).estimateGas({from: $selectedAccount}, function(err, gas){
+        gasLimit += gas;
+      });
+    }
+  }
 
-  // function estimateGas() {
-  //   estimateCBT();
-  //   estimateSTF();
-  // }
+  async function estimateGas(recipients, tokens) {
+    if (recipients.length != tokens.length) { errorMessage = 'Invalid recipient/token IDs provided; please review'; return; }
+    await estimateCBT(recipients, tokens);
+    await estimateSTF(recipients, tokens);
+    let gasPrice = await $web3.eth.getGasPrice();
+    let gasCostEth = await $web3.utils.fromWei((gasPrice * gasLimit).toString());
+    let si_gasCostEth = await $web3.utils.fromWei((gasPrice * si_gasLimit).toString());
+    gasCalculation = `Transferring each token individual would require ${gasLimit} gas (${gasCostEth} Ξ). SendIt can do it for ${si_gasLimit} gas (${si_gasCostEth} Ξ).`;
+  }
 
 </script>
 
@@ -178,6 +178,10 @@
     <button class="button-primary" on:click|preventDefault={approveSendIt}>Approve</button>
   {/if}
 </form>
+{/if}
+
+{#if gasCalculation}
+  <p>{gasCalculation}</p>
 {/if}
 
 {#if errorMessage}

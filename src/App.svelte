@@ -15,7 +15,7 @@
         <p>
           A bulk NFT transfer utility made for transferring ERC-721 and ERC-1155 tokens between accounts easily.
           <br />
-          Made by <a href="https://lzahq.tech" target="_blank">lza_menace</a> and the <a href="https://art101.io" target="_blank">Art101</a> team.
+          Made by <a href="https://lzahq.tech" target="_blank" rel="noreferrer">lza_menace</a> and the <a href="https://art101.io" target="_blank" rel="noreferrer">Art101</a> team.
         </p>
         <Providers />
       </div>
