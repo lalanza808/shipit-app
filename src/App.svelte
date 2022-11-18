@@ -8,18 +8,15 @@
 
 <main>
 
-  <div>
-    <a href="https://vitejs.dev" target="_blank"> 
-      <img src="{viteLogo}" class="logo" alt="Vite Logo" />
-    </a>
-    <a href="https://svelte.dev" target="_blank"> 
-      <img src={svelteLogo} class="logo svelte" alt="Svelte Logo" />
-    </a>
-    <a href="https://web3js.readthedocs.io/" target="_blank">
-      <img src={ethereumLogo} class="logo ethereum" alt="Ethereum Logo" />
-    </a>
+  <div class="container">
+    <div class="row">
+      <div class="column">
+        <img src={ethereumLogo} class="logo ethereum" alt="Ethereum Logo" />
+        <h1>SendIt!</h1>
+        <p>A bulk NFT transfer utility made for transferring ERC-721 and ERC-1155 tokens between accounts easily.</p>
+      </div>
+    </div>
   </div>
-  <h1>Vite + Svelte + web3.js</h1>
 
   <div class="card">
     <Providers />
@@ -38,13 +35,7 @@
   .logo:hover {
     filter: drop-shadow(0 0 2em #646cffaa);
   }
-  .logo.svelte:hover {
-    filter: drop-shadow(0 0 2em #ff3e00aa);
-  }
   .logo.ethereum:hover {
     filter: drop-shadow(0 0 2em #343434aa);
-  }
-  .read-the-docs {
-    color: #888;
   }
 </style>
