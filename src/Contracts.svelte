@@ -172,7 +172,7 @@
     if (isERC1155) {
       let {new_addr, new_token, new_amount} = deriveTokenTotals(recipients, tokens);
       for (let i = 0; i < new_addr.length; i++) {
-        await $contracts.nft.methods.safeTransferFrom($selectedAccount, new_addr[i], new_token[i], new_amount[i], "").estimateGas({from: $selectedAccount}, function(err, gas){
+        await $contracts.nft.methods.safeTransferFrom($selectedAccount, new_addr[i], new_token[i], new_amount[i], 0x0).estimateGas({from: $selectedAccount}, function(err, gas){
           gasLimit += gas;
         });
       }
