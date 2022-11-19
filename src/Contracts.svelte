@@ -12,6 +12,7 @@
   let contractApproved = true;
   let checked = false;
   let checksPending = false;
+  let transferPending = false;
   let gasCalculation = [];
   let selectedStandard = 1;
   let gasPrice = 0;
@@ -36,14 +37,17 @@
   }
 
   const approveShipIt = async () => {
-    await $contracts.nft.methods.setApprovalForAll(shipit, true).send({from: $selectedAccount});
+    try {
+      await $contracts.nft.methods.setApprovalForAll(shipit, true).send({from: $selectedAccount});
+      contractApproved = true;
+    } catch(e) {
+      errorMessage = `Failed to approve contract: ${e.message}`;
+      return;
+    }
   }
 
   const isApproved = async () => {
     return await $contracts.nft.methods.isApprovedForAll($selectedAccount, shipit).call({from: $selectedAccount});
-    // if (!i) {
-    //   await $contracts.nft.methods.setApprovalForAll(shipit, true).send({from: $selectedAccount});
-    // }
   }
 
   const performCheck = async () => {
@@ -120,7 +124,7 @@
     try {
       let approved = await $contracts.nft.methods.isApprovedForAll($selectedAccount, shipit).call();
       if (!approved) {
-        errorMessage = 'ShipIt requires approval to bulk transfer tokens; click the "Approve" button below';
+        errorMessage = 'ShipIt requires approval to bulk transfer tokens; click the "Approve" button to view gas estimations and savings';
         checksPending = false;
         contractApproved = false;
         return;
@@ -173,21 +177,34 @@
   async function executeTransfer() {
     console.log('executing transfer')
     let fee = await $contracts.shipit.methods.usageFee().call();
-    if (isERC1155) {
-      let {new_addr, new_token, new_amount} = deriveTokenTotals();
-      await $contracts.shipit.methods.erc1155BulkTransfer(contractAddress, new_addr, new_token, new_amount).send({
-        from: $selectedAccount,
-        value: fee * recipients.length,
-        gasPrice: gasPrice,
-        gas: si_gasLimit
-      });
-    } else {
-      await $contracts.shipit.methods.erc721BulkTransfer(contractAddress, recipients, tokenIds).send({
-        from: $selectedAccount,
-        value: fee * recipients.length,
-        gasPrice: gasPrice,
-        gas: si_gasLimit
-      });
+    let res;
+    transferPending = true;
+    try {
+      if (isERC1155) {
+        let {new_addr, new_token, new_amount} = deriveTokenTotals();
+        res = await $contracts.shipit.methods.erc1155BulkTransfer(contractAddress, new_addr, new_token, new_amount).send({
+          from: $selectedAccount,
+          value: fee * recipients.length,
+          gasPrice: gasPrice,
+          gas: si_gasLimit
+        });
+      } else {
+        res = await $contracts.shipit.methods.erc721BulkTransfer(contractAddress, recipients, tokenIds).send({
+          from: $selectedAccount,
+          value: fee * recipients.length,
+          gasPrice: gasPrice,
+          gas: si_gasLimit
+        });
+      }
+      if (res.status) {
+        successMessage = `Success! <a target=_blank href="https://etherscan.io/tx/${res.transactionHash}">View Tx</a>`;
+      } else {
+        // $('#mintMessage').html(`Failed. ${res}`);
+        throw new Error(`Transaction failed: ${res}`)
+      }
+    } catch(e) {
+      errorMessage = `Failed to execute bulk transfer: ${e.message}`;
+      transferPending = false;
     }
   }
 
@@ -264,7 +281,9 @@
 0x653D2d1D10c79017b2eA5F5a6F02D9Ab6e725395,1775" id="recipientInfo" on:change={clearMessages}></textarea>
     <br />
     {#if checked}
-      <input class="button-primary" type="submit" value="Transfer" on:click|preventDefault={executeTransfer}>
+      <button class="button-primary" disabled={transferPending} on:click|preventDefault={executeTransfer}>
+        {#if transferPending}executing...{:else}Transfer{/if}
+      </button>
     {:else}
       <button class="button" disabled={checksPending} on:click|preventDefault={performCheck}>
         {#if checksPending}checking...{:else}Check{/if}
@@ -289,7 +308,7 @@
   <p class="errorMessage">{errorMessage}</p>
   {/if}
 
-  {#if errorMessage}
+  {#if successMessage}
   <p class="successMessage">{successMessage}</p>
   {/if}
 {/if}
