@@ -5,7 +5,7 @@
   import IERC1155 from '@openzeppelin/contracts/build/contracts/IERC1155.json';
   import ShipIt from './lib/shipit.json';
 
-  const shipit = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
+  const shipit = '0x0E81fEC357adB73B2066E9bE253d3510ec9cCAdb';
   let errorMessage = '';
   let successMessage = '';
   let contractAddress = '';
@@ -175,7 +175,6 @@
   }
 
   async function executeTransfer() {
-    console.log('executing transfer')
     let fee = await $contracts.shipit.methods.usageFee().call();
     let res;
     transferPending = true;
@@ -197,9 +196,11 @@
         });
       }
       if (res.status) {
-        successMessage = `Success! <a target=_blank href="https://etherscan.io/tx/${res.transactionHash}">View Tx</a>`;
+        document.getElementById('recipientInfo').value = '';
+        clearMessages();
+        successMessage = `Success! tx ${res.transactionHash}`;
+        window.scrollTo(0, document.body.scrollHeight);
       } else {
-        // $('#mintMessage').html(`Failed. ${res}`);
         throw new Error(`Transaction failed: ${res}`)
       }
     } catch(e) {
@@ -229,7 +230,7 @@
   async function estimateGas() {
     if (recipients.length != tokenIds.length) { errorMessage = 'Invalid recipient/token IDs provided; please review'; return; }
     gasPrice = await $web3.eth.getGasPrice();
-    // gasPrice = 15000000000; // override for testing
+    gasPrice = Math.round(gasPrice * 1.25);  // gentle nudge gwei
     await estimateCBT();
     await estimateSTF();
     let gasPriceGwei = await $web3.utils.fromWei(gasPrice.toString(), 'gwei');
