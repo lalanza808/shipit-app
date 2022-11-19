@@ -97,8 +97,9 @@
 
         // Check ownership of tokens
         if (selectedStandard == 1) {
+          let owner;
           try {
-            let owner = await $contracts.nft.methods.ownerOf(tokenId).call();
+            owner = await $contracts.nft.methods.ownerOf(tokenId).call();
           } catch(e) {
             errorMessage = `Something went wrong; make sure you're using the right token standard for the contract: ${e.message}`;
             checksPending = false;
