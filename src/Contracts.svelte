@@ -190,7 +190,7 @@
     await estimateCBT(recipients, tokens, isERC1155);
     await estimateSTF(recipients, tokens, isERC1155);
     let gasPrice = await $web3.eth.getGasPrice();
-    // gasPrice = 15000000000; // override for testing
+    gasPrice = 15000000000; // override for testing
     let gasPriceGwei = await $web3.utils.fromWei(gasPrice.toString(), 'gwei');
     let gasCostWei = gasPrice * gasLimit;
     let gasCostEth = await $web3.utils.fromWei(gasCostWei.toString());
