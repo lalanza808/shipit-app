@@ -14,14 +14,17 @@
   let checksPending = false;
   let gasCalculation = [];
   let selectedStandard = 1;
+  let gasPrice = 0;
+  let gasLimit = 0;
+  let si_gasLimit = 0;
+  let tokenIds = [];
+  let recipients = [];
+  let isERC1155 = false;
   let tokenStandards = [
     { id: 1, text: 'ERC-721' },
     { id: 2, text: 'ERC-1155' }
   ]
   
-  let gasLimit = 0;
-  let si_gasLimit = 0;
-
   evm.attachContract('shipit', shipit, ShipIt.abi);
 
   function clearMessages() {
@@ -44,9 +47,9 @@
   }
 
   const performCheck = async () => {
-    let tokenIds = [];
-    let recipients = [];
-    let isERC1155 = false;
+    tokenIds = [];
+    recipients = [];
+    isERC1155 = false;
     checksPending = true;
     errorMessage = '';
 
@@ -129,19 +132,19 @@
     }
 
     // Show gas consumption forecasts
-    await estimateGas(recipients, tokenIds, isERC1155);
+    await estimateGas();
     
     checked = true;
     window.scrollTo(0, document.body.scrollHeight);
   }
 
-  function deriveTokenTotals(recipients, tokens) {
+  function deriveTokenTotals() {
     const counts = {};
     let new_addr = [];
     let new_token = [];
     let new_amount = [];
     for (var i = 0; i < recipients.length; i++) {
-      let x = recipients[i] + "_" + tokens[i];
+      let x = recipients[i] + "_" + tokenIds[i];
       counts[x] = (counts[x] || 0) + 1;
     }
     for (const [key, value] of Object.entries(counts)) {
@@ -152,45 +155,66 @@
     return {new_addr, new_token, new_amount}
   }
 
-  async function estimateCBT(recipients, tokens, isERC1155) {
+  async function estimateCBT() {
     si_gasLimit = 0;
     let fee = await $contracts.shipit.methods.usageFee().call();
     if (isERC1155) {
-      let {new_addr, new_token, new_amount} = deriveTokenTotals(recipients, tokens);
+      let {new_addr, new_token, new_amount} = deriveTokenTotals();
       await $contracts.shipit.methods.erc1155BulkTransfer(contractAddress, new_addr, new_token, new_amount).estimateGas({from: $selectedAccount, value: fee * recipients.length}, function(err, gas){
         si_gasLimit += gas;
       });
     } else {
-      await $contracts.shipit.methods.erc721BulkTransfer(contractAddress, recipients, tokens).estimateGas({from: $selectedAccount, value: fee * recipients.length}, function(err, gas){
+      await $contracts.shipit.methods.erc721BulkTransfer(contractAddress, recipients, tokenIds).estimateGas({from: $selectedAccount, value: fee * recipients.length}, function(err, gas){
         si_gasLimit += gas;
       });
     }
   }
 
-  async function estimateSTF(recipients, tokens, isERC1155) {
+  async function executeTransfer() {
+    console.log('executing transfer')
+    let fee = await $contracts.shipit.methods.usageFee().call();
+    if (isERC1155) {
+      let {new_addr, new_token, new_amount} = deriveTokenTotals();
+      await $contracts.shipit.methods.erc1155BulkTransfer(contractAddress, new_addr, new_token, new_amount).send({
+        from: $selectedAccount,
+        value: fee * recipients.length,
+        gasPrice: gasPrice,
+        gas: si_gasLimit
+      });
+    } else {
+      await $contracts.shipit.methods.erc721BulkTransfer(contractAddress, recipients, tokenIds).send({
+        from: $selectedAccount,
+        value: fee * recipients.length,
+        gasPrice: gasPrice,
+        gas: si_gasLimit
+      });
+    }
+  }
+
+  async function estimateSTF() {
     gasLimit = 0;
     if (isERC1155) {
-      let {new_addr, new_token, new_amount} = deriveTokenTotals(recipients, tokens);
+      let {new_addr, new_token, new_amount} = deriveTokenTotals();
       for (let i = 0; i < new_addr.length; i++) {
-        await $contracts.nft.methods.safeTransferFrom($selectedAccount, new_addr[i], new_token[i], new_amount[i], 0x0).estimateGas({from: $selectedAccount}, function(err, gas){
+        await $contracts.nft.methods.safeTransferFrom($selectedAccount, new_addr[i], new_token[i], new_amount[i], 0x0).estimateGas({from: $selectedAccount, gasPrice: gasPrice}, function(err, gas){
           gasLimit += gas;
         });
       }
     } else {
       for (let i = 0; i < recipients.length; i++) {
-        await $contracts.nft.methods.safeTransferFrom($selectedAccount, recipients[i], tokens[i]).estimateGas({from: $selectedAccount}, function(err, gas){
+        await $contracts.nft.methods.safeTransferFrom($selectedAccount, recipients[i], tokenIds[i]).estimateGas({from: $selectedAccount, gasPrice: gasPrice}, function(err, gas){
           gasLimit += gas;
         });
       }
     }
   }
 
-  async function estimateGas(recipients, tokens, isERC1155) {
-    if (recipients.length != tokens.length) { errorMessage = 'Invalid recipient/token IDs provided; please review'; return; }
-    await estimateCBT(recipients, tokens, isERC1155);
-    await estimateSTF(recipients, tokens, isERC1155);
-    let gasPrice = await $web3.eth.getGasPrice();
-    gasPrice = 15000000000; // override for testing
+  async function estimateGas() {
+    if (recipients.length != tokenIds.length) { errorMessage = 'Invalid recipient/token IDs provided; please review'; return; }
+    gasPrice = await $web3.eth.getGasPrice();
+    // gasPrice = 15000000000; // override for testing
+    await estimateCBT();
+    await estimateSTF();
     let gasPriceGwei = await $web3.utils.fromWei(gasPrice.toString(), 'gwei');
     let gasCostWei = gasPrice * gasLimit;
     let gasCostEth = await $web3.utils.fromWei(gasCostWei.toString());
@@ -218,58 +242,57 @@
 
 
 {#if $selectedAccount}
-<form>
-  <div class="row">
-    <div class="eight columns">
-      <label for="contractAddress">Contract Address</label>
-      <input class="u-full-width" type="text" placeholder="0x..." id="contractAddress" bind:value={contractAddress}>
+  <form>
+    <div class="row">
+      <div class="eight columns">
+        <label for="contractAddress">Contract Address</label>
+        <input class="u-full-width" type="text" placeholder="0x..." id="contractAddress" bind:value={contractAddress}>
+      </div>
+      <div class="four columns">
+        <label for="tokenStandard">Token Standard</label>
+        <select class="u-full-width" id="tokenStandard" bind:value={selectedStandard} on:change={clearMessages}>
+          {#each tokenStandards as s}
+            <option value={s.id}>
+              {s.text}
+            </option>
+          {/each}
+        </select>
+      </div>
     </div>
-    <div class="four columns">
-      <label for="tokenStandard">Token Standard</label>
-      <select class="u-full-width" id="tokenStandard" bind:value={selectedStandard} on:change={clearMessages}>
-        {#each tokenStandards as s}
-          <option value={s.id}>
-            {s.text}
-          </option>
-        {/each}
-      </select>
-    </div>
-  </div>
-  <label for="recipientInfo">Recipient Address, Token ID</label>
-  <textarea class="u-full-width" style="height: 10em;" placeholder="0x653D2d1D10c79017b2eA5F5a6F02D9Ab6e725395,90
+    <label for="recipientInfo">Recipient Address, Token ID</label>
+    <textarea class="u-full-width" style="height: 10em;" placeholder="0x653D2d1D10c79017b2eA5F5a6F02D9Ab6e725395,90
 0x653D2d1D10c79017b2eA5F5a6F02D9Ab6e725395,1775" id="recipientInfo" on:change={clearMessages}></textarea>
-  <br />
-  {#if checked}
-    <input class="button-primary" type="submit" value="Transfer">
-  {:else}
-    <button class="button" disabled={checksPending} on:click|preventDefault={performCheck}>
-      {#if checksPending}checking...{:else}Check{/if}
-    </button>
-  {/if}
-  {#if !contractApproved}
-    <button class="button-primary" on:click|preventDefault={approveShipIt}>Approve</button>
-  {/if}
-</form>
-{/if}
-
-<ul>
-  {#each gasCalculation as m, i}
-    {#if i == 3}
-      <li class="successMessage">{m}</li>
+    <br />
+    {#if checked}
+      <input class="button-primary" type="submit" value="Transfer" on:click|preventDefault={executeTransfer}>
     {:else}
-      <li>{m}</li>
+      <button class="button" disabled={checksPending} on:click|preventDefault={performCheck}>
+        {#if checksPending}checking...{:else}Check{/if}
+      </button>
     {/if}
-  {/each}
-</ul>
+    {#if !contractApproved}
+      <button class="button-primary" on:click|preventDefault={approveShipIt}>Approve</button>
+    {/if}
+  </form>
 
-{#if errorMessage}
-<p class="errorMessage">{errorMessage}</p>
+  <ul>
+    {#each gasCalculation as m, i}
+      {#if i == 3}
+        <li class="successMessage">{m}</li>
+      {:else}
+        <li>{m}</li>
+      {/if}
+    {/each}
+  </ul>
+
+  {#if errorMessage}
+  <p class="errorMessage">{errorMessage}</p>
+  {/if}
+
+  {#if errorMessage}
+  <p class="successMessage">{successMessage}</p>
+  {/if}
 {/if}
-
-{#if errorMessage}
-<p class="successMessage">{successMessage}</p>
-{/if}
-
 <style>
   .errorMessage {
     color: red;
