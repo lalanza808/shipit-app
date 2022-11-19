@@ -13,6 +13,7 @@
   let checked = false;
   let checksPending = false;
   let transferPending = false;
+  let approvalPending = false;
   let gasCalculation = [];
   let selectedStandard = 1;
   let gasPrice = 0;
@@ -38,10 +39,12 @@
 
   const approveShipIt = async () => {
     try {
+      approvalPending = true;
       await $contracts.nft.methods.setApprovalForAll(shipit, true).send({from: $selectedAccount});
       contractApproved = true;
     } catch(e) {
       errorMessage = `Failed to approve contract: ${e.message}`;
+      approvalPending = false;
       return;
     }
   }
@@ -96,11 +99,17 @@
         if (selectedStandard == 1) {
           try {
             let owner = await $contracts.nft.methods.ownerOf(tokenId).call();
+          } catch(e) {
+            errorMessage = `Something went wrong; make sure you're using the right token standard for the contract: ${e.message}`;
+            checksPending = false;
+            return;
+          }
+          try {
             if (owner.toLowerCase() != $selectedAccount.toLowerCase()) { throw new Error(`You must own the token in order to send it (token ${tokenId})`); }
             if (tokenIds.includes(tokenId)) { throw new Error(`Duplicate token ID found (token ${tokenId})`); }
             tokenIds.push(tokenId);
           } catch(e) {
-            errorMessage = e;
+            errorMessage = e.toString();
             checksPending = false;
             return;
           }
@@ -111,7 +120,7 @@
             if (Number(tokenIds.length) > Number(balance)) { throw new Error(`Provided more tokens than balance (token ${tokenId}, balance ${balance})`); }
             tokenIds.push(tokenId);
           } catch(e) {
-            errorMessage = e;
+            errorMessage = e.toString();
             checksPending = false;
             return;
           }
@@ -204,7 +213,7 @@
         throw new Error(`Transaction failed: ${res}`)
       }
     } catch(e) {
-      errorMessage = `Failed to execute bulk transfer: ${e.message}`;
+      errorMessage = `Failed to execute bulk transfer: ${e.toString()}`;
       transferPending = false;
     }
   }
@@ -291,7 +300,9 @@
       </button>
     {/if}
     {#if !contractApproved}
-      <button class="button-primary" on:click|preventDefault={approveShipIt}>Approve</button>
+      <button class="button-primary" disabled={approvalPending} on:click|preventDefault={approveShipIt}>
+        {#if approvalPending}pending...{:else}Approve{/if}
+      </button>
     {/if}
   </form>
 
