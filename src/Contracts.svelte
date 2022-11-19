@@ -5,7 +5,7 @@
   import IERC1155 from '@openzeppelin/contracts/build/contracts/IERC1155.json';
   import ShipIt from './lib/shipit.json';
 
-  const shipit = '0x0E81fEC357adB73B2066E9bE253d3510ec9cCAdb';
+  const shipit = '0x76Ae5B6E75F6e05BcaD1028F78A83f974fc96A8B';
   let errorMessage = '';
   let successMessage = '';
   let contractAddress = '';
