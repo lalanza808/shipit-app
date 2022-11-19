@@ -136,22 +136,30 @@
   }
 
   function deriveTokenTotals(recipients, tokens) {
-    let totals = {
-      addresses: [],
-      tokenIds: [],
-      amounts: []
-    };
-    for (let i = 0; i < recipients.length; i++) {
-      //
+    const counts = {};
+    let new_addr = [];
+    let new_token = [];
+    let new_amount = [];
+    for (var i = 0; i < recipients.length; i++) {
+      let x = recipients[i] + "_" + tokens[i];
+      counts[x] = (counts[x] || 0) + 1;
     }
+    for (const [key, value] of Object.entries(counts)) {
+      new_addr.push(key.split('_')[0]);
+      new_token.push(key.split('_')[1]);
+      new_amount.push(value);
+    }
+    return {new_addr, new_token, new_amount}
   }
 
   async function estimateCBT(recipients, tokens, isERC1155) {
     si_gasLimit = 0;
-    // TODO - erc1155 batching
     let fee = await $contracts.shipit.methods.usageFee().call();
     if (isERC1155) {
-      
+      let {new_addr, new_token, new_amount} = deriveTokenTotals(recipients, tokens);
+      await $contracts.shipit.methods.erc1155BulkTransfer(contractAddress, new_addr, new_token, new_amount).estimateGas({from: $selectedAccount, value: fee * recipients.length}, function(err, gas){
+        si_gasLimit += gas;
+      });
     } else {
       await $contracts.shipit.methods.erc721BulkTransfer(contractAddress, recipients, tokens).estimateGas({from: $selectedAccount, value: fee * recipients.length}, function(err, gas){
         si_gasLimit += gas;
@@ -161,13 +169,15 @@
 
   async function estimateSTF(recipients, tokens, isERC1155) {
     gasLimit = 0;
-    // TODO - erc1155 batching
-    for (let i = 0; i < recipients.length; i++) {
-      if (isERC1155) {
-        await $contracts.nft.methods.safeTransferFrom($selectedAccount, recipients[i], tokens[i], 1, "").estimateGas({from: $selectedAccount}, function(err, gas){
+    if (isERC1155) {
+      let {new_addr, new_token, new_amount} = deriveTokenTotals(recipients, tokens);
+      for (let i = 0; i < new_addr.length; i++) {
+        await $contracts.nft.methods.safeTransferFrom($selectedAccount, new_addr[i], new_token[i], new_amount[i], "").estimateGas({from: $selectedAccount}, function(err, gas){
           gasLimit += gas;
         });
-      } else {
+      }
+    } else {
+      for (let i = 0; i < recipients.length; i++) {
         await $contracts.nft.methods.safeTransferFrom($selectedAccount, recipients[i], tokens[i]).estimateGas({from: $selectedAccount}, function(err, gas){
           gasLimit += gas;
         });
@@ -210,11 +220,11 @@
 {#if $selectedAccount}
 <form>
   <div class="row">
-    <div class="ten columns">
+    <div class="eight columns">
       <label for="contractAddress">Contract Address</label>
       <input class="u-full-width" type="text" placeholder="0x..." id="contractAddress" bind:value={contractAddress}>
     </div>
-    <div class="two columns">
+    <div class="four columns">
       <label for="tokenStandard">Token Standard</label>
       <select class="u-full-width" id="tokenStandard" bind:value={selectedStandard} on:change={clearMessages}>
         {#each tokenStandards as s}
