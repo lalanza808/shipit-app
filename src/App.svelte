@@ -9,7 +9,7 @@
 <main>
   <div class="container">
     <div class="row">
-      <div class="column" style="margin-top: 2em;">
+      <div class="column" style="margin-top: 4em;">
         <img src={ethereumLogo} class="logo ethereum" alt="Ethereum Logo" width=50em />
         <h1>ShipIt!</h1>
         <p>
@@ -34,11 +34,6 @@
 </main>
 
 <style>
-  .logo {
-    height: 6em;
-    padding: 1.5em;
-    will-change: filter;
-  }
   .logo:hover {
     filter: drop-shadow(0 0 2em #646cffaa);
   }
