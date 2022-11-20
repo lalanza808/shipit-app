@@ -1,4 +1,5 @@
 <script>
+  import { writable } from 'svelte/store';
   import { tweened } from 'svelte/motion';
   import { cubicOut } from 'svelte/easing';
   import { defaultEvmStores as evm, selectedAccount, contracts, web3 } from 'svelte-web3';
@@ -10,7 +11,7 @@
     duration: 800,
     easing: cubicOut
   });
-  const shipit = '0x76Ae5B6E75F6e05BcaD1028F78A83f974fc96A8B';
+  const shipit = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
   let errorMessage = '';
   let successMessage = '';
   let contractAddress = '';
@@ -63,6 +64,9 @@
       revokePending = true;
       await $contracts.nft.methods.setApprovalForAll(shipit, false).send({from: $selectedAccount});
       contractApproved = false;
+      approvalRequired = false;
+      revokeRequired = false;
+      clearMessages();
     } catch(e) {
       errorMessage = `Failed to revoke contract: ${e.message}`;
       revokePending = false;
@@ -114,6 +118,7 @@
         } catch {
           errorMessage = `Invalid recipient address supplied (line ${i + 1})`;
           checksPending = false;
+
           return;
         }
 
@@ -161,6 +166,8 @@
         checksPending = false;
         contractApproved = false;
         return;
+      } else {
+        approvalRequired = false;
       }
     } catch {
       errorMessage = 'Unable to check contract approvals';
@@ -172,6 +179,7 @@
     await estimateGas();
     
     checked = true;
+    revokeRequired = true;
     window.scrollTo(0, document.body.scrollHeight);
   }
 
@@ -312,32 +320,38 @@
     <label for="recipientInfo">Recipient Address, Token ID</label>
     <textarea class="u-full-width" style="height: 10em;" placeholder="0x653D2d1D10c79017b2eA5F5a6F02D9Ab6e725395,90
 0x653D2d1D10c79017b2eA5F5a6F02D9Ab6e725395,1775" id="recipientInfo" on:change={clearMessages}></textarea>
-    <br />
-    {#if checked}
-      <button class="button-primary" disabled={transferPending} on:click|preventDefault={executeTransfer}>
-        {#if transferPending}executing...{:else}Transfer{/if}
-      </button>
-    {:else}
-      <button class="button" disabled={checksPending} on:click|preventDefault={performCheck}>
-        {#if checksPending}checking...{:else}Check{/if}
-      </button>
-    {/if}
-    {#if revokeRequired}
-      <button class="button-primary" disabled={revokePending} on:click|preventDefault={revokeShipIt}>
-        {#if revokePending}revoking...{:else}Revoke{/if}
-      </button>
-    {/if}
-    {#if approvalRequired}
-      <button class="button-primary" disabled={approvalPending} on:click|preventDefault={approveShipIt}>
-        {#if approvalPending}pending...{:else}Approve{/if}
-      </button>
-    {/if}
+    <div class="row">
+      <div class="six columns">
+        {#if revokeRequired}
+          <button class="button-fail" disabled={revokePending} on:click|preventDefault={revokeShipIt}>
+            {#if revokePending}revoking...{:else}Revoke{/if}
+          </button>
+        {/if}
+        {#if approvalRequired}
+          <button class="button-primary" disabled={approvalPending} on:click|preventDefault={approveShipIt}>
+            {#if approvalPending}pending...{:else}Approve{/if}
+          </button>
+        {/if}
+        {#if checked}
+          <button class="button-primary" disabled={transferPending} on:click|preventDefault={executeTransfer}>
+            {#if transferPending}executing...{:else}Transfer{/if}
+          </button>
+        {:else}
+          <button class="button" disabled={checksPending} on:click|preventDefault={performCheck}>
+            {#if checksPending}checking...{:else}Check{/if}
+          </button>
+        {/if}
+      </div>
+      <div class="six columns">
+        {#if $progress > 0 && $progress < 1}
+          <progress value={$progress}></progress>
+        {/if}
+      </div>
+    </div>
   </form>
   <div class="row">
     <div class="twelve columns">
-      {#if $progress > 0 && $progress < 1}
-        <progress value={$progress}></progress>
-      {/if}
+      {#if gasCalculation.length > 0}
       <ul>
         {#each gasCalculation as m, i}
           {#if i == 3}
@@ -347,6 +361,7 @@
           {/if}
         {/each}
       </ul>
+      {/if}
       {#if errorMessage}
         <p class="errorMessage">{errorMessage}</p>
       {/if}
@@ -363,9 +378,27 @@
   .successMessage {
     color: green;
   }
+  .button-fail {
+    background-color: rgba(244, 67, 54, .75);
+    border-color: rgba(244, 67, 54, .75);
+    color: white;
+  }
+  .button-fail:disabled {
+    background-color: rgba(244, 67, 54, .5);
+    border: 1px solid rgba(244, 67, 54, .5);
+  }
+  .button-primary:disabled {
+    background-color: rgba(51, 195, 240, .5);
+    border: 1px solid rgba(51, 195, 240, .5);
+  }
+  .button:disabled {
+    background-color: rgba(204, 204, 204, .5);
+    border: 1px solid rgba(204, 204, 204, .5);
+  }
   progress {
     display: block;
     width: 100%;
     transition: transform 2s;
+    height: 2em;
   }
 </style>
