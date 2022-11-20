@@ -7,18 +7,21 @@
   import ShipIt from './lib/shipit.json';
 
   const progress = tweened(0, {
-    duration: 300,
+    duration: 800,
     easing: cubicOut
   });
   const shipit = '0x76Ae5B6E75F6e05BcaD1028F78A83f974fc96A8B';
   let errorMessage = '';
   let successMessage = '';
   let contractAddress = '';
-  let contractApproved = true;
+  let contractApproved = false;
   let checked = false;
   let checksPending = false;
   let transferPending = false;
   let approvalPending = false;
+  let approvalRequired = false;
+  let revokeRequired = false;
+  let revokePending = false;
   let gasCalculation = [];
   let selectedStandard = 1;
   let gasPrice = 0;
@@ -47,9 +50,22 @@
       approvalPending = true;
       await $contracts.nft.methods.setApprovalForAll(shipit, true).send({from: $selectedAccount});
       contractApproved = true;
+      approvalRequired = false;
     } catch(e) {
       errorMessage = `Failed to approve contract: ${e.message}`;
       approvalPending = false;
+      return;
+    }
+  }
+
+  const revokeShipIt = async () => {
+    try {
+      revokePending = true;
+      await $contracts.nft.methods.setApprovalForAll(shipit, false).send({from: $selectedAccount});
+      contractApproved = false;
+    } catch(e) {
+      errorMessage = `Failed to revoke contract: ${e.message}`;
+      revokePending = false;
       return;
     }
   }
@@ -141,6 +157,7 @@
       let approved = await $contracts.nft.methods.isApprovedForAll($selectedAccount, shipit).call();
       if (!approved) {
         errorMessage = 'ShipIt requires approval to bulk transfer tokens; click the "Approve" button to view gas estimations and savings';
+        approvalRequired = true;
         checksPending = false;
         contractApproved = false;
         return;
@@ -305,39 +322,39 @@
         {#if checksPending}checking...{:else}Check{/if}
       </button>
     {/if}
-    {#if !contractApproved}
+    {#if revokeRequired}
+      <button class="button-primary" disabled={revokePending} on:click|preventDefault={revokeShipIt}>
+        {#if revokePending}revoking...{:else}Revoke{/if}
+      </button>
+    {/if}
+    {#if approvalRequired}
       <button class="button-primary" disabled={approvalPending} on:click|preventDefault={approveShipIt}>
         {#if approvalPending}pending...{:else}Approve{/if}
       </button>
     {/if}
   </form>
-
-  {#if $progress > 0 && $progress < 1}
   <div class="row">
-    <div class="eight columns">
-      <progress value={$progress}></progress>
+    <div class="twelve columns">
+      {#if $progress > 0 && $progress < 1}
+        <progress value={$progress}></progress>
+      {/if}
+      <ul>
+        {#each gasCalculation as m, i}
+          {#if i == 3}
+            <li class="successMessage">{m}</li>
+          {:else}
+            <li>{m}</li>
+          {/if}
+        {/each}
+      </ul>
+      {#if errorMessage}
+        <p class="errorMessage">{errorMessage}</p>
+      {/if}
+      {#if successMessage}
+        <p class="successMessage">{successMessage}</p>
+      {/if}
     </div>
   </div>
-  {/if}
-  
-
-  <ul>
-    {#each gasCalculation as m, i}
-      {#if i == 3}
-        <li class="successMessage">{m}</li>
-      {:else}
-        <li>{m}</li>
-      {/if}
-    {/each}
-  </ul>
-
-  {#if errorMessage}
-  <p class="errorMessage">{errorMessage}</p>
-  {/if}
-
-  {#if successMessage}
-  <p class="successMessage">{successMessage}</p>
-  {/if}
 {/if}
 <style>
   .errorMessage {
