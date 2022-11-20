@@ -1,10 +1,15 @@
 <script>
-
+  import { tweened } from 'svelte/motion';
+  import { cubicOut } from 'svelte/easing';
   import { defaultEvmStores as evm, selectedAccount, contracts, web3 } from 'svelte-web3';
   import IERC721 from '@openzeppelin/contracts/build/contracts/IERC721.json';
   import IERC1155 from '@openzeppelin/contracts/build/contracts/IERC1155.json';
   import ShipIt from './lib/shipit.json';
 
+  const progress = tweened(0, {
+    duration: 300,
+    easing: cubicOut
+  });
   const shipit = '0x76Ae5B6E75F6e05BcaD1028F78A83f974fc96A8B';
   let errorMessage = '';
   let successMessage = '';
@@ -82,6 +87,7 @@
     let lines = info.split(/(\s+)/);
     if (lines.length < 2) { errorMessage = 'Invalid recipient info; should be sending 2 or more tokens'; checksPending = false; return; }
     for (let i = 0; i < lines.length; i++) {
+      progress.set(Math.round(i / lines.length));
       let line = lines[i].split(',');
       if (line.length == 2) {
         let recipient = line[0];
@@ -264,7 +270,6 @@
     }
     gasCalculation = gasCalculation; // trigger recheck
   }
-
 </script>
 
 
@@ -307,6 +312,15 @@
     {/if}
   </form>
 
+  {#if $progress > 0 && $progress < 1}
+  <div class="row">
+    <div class="eight columns">
+      <progress value={$progress}></progress>
+    </div>
+  </div>
+  {/if}
+  
+
   <ul>
     {#each gasCalculation as m, i}
       {#if i == 3}
@@ -331,5 +345,10 @@
   }
   .successMessage {
     color: green;
+  }
+  progress {
+    display: block;
+    width: 100%;
+    transition: transform 2s;
   }
 </style>
