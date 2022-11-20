@@ -20,7 +20,13 @@
           The higher the network gas price, the more savings you will see.
           <br />
           <br />
-          Made by <a href="https://twitter.com/lza_menace" target="_blank" rel="noreferrer">lza_menace</a> of the <a href="https://art101.io" target="_blank" rel="noreferrer">Art101</a> team.
+          Made by <a href="https://twitter.com/lza_menace" target="_blank" rel="noreferrer">lza_menace</a> of the <a href="https://art101.io" target="_blank" rel="noreferrer">Art101</a> team. 
+          <a href="https://etherscan.io/address/0x76Ae5B6E75F6e05BcaD1028F78A83f974fc96A8B/" target="_blank" rel="noreferrer">
+            Contract.
+          </a>
+          <a href="https://github.com/lalanza808/shipit-app" rel="noreferrer" target="_blank">
+            App.
+          </a>
         </p>
         <Providers />
       </div>
