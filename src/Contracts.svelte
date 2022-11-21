@@ -1,5 +1,4 @@
 <script>
-  // import { CONTRACT } from '$env/dynamic/private';
   import { tweened } from 'svelte/motion';
   import { cubicOut } from 'svelte/easing';
   import { defaultEvmStores as evm, selectedAccount, contracts, web3 } from 'svelte-web3';
@@ -115,18 +114,29 @@
     let lines = info.split(/(\s+)/);
     if (lines.length < 2) { errorMessage = 'Invalid recipient info; should be sending 2 or more tokens'; checksPending = false; return; }
     for (let i = 0; i < lines.length; i++) {
-      progress.set(Math.round(i / lines.length));
       let line = lines[i].split(',');
       if (line.length == 2) {
         let recipient = line[0];
         let tokenId = line[1];
         try {
-          $web3.utils.toChecksumAddress(recipient);
-          recipients.push(recipient);
-        } catch {
-          errorMessage = `Invalid recipient address supplied (line ${i + 1})`;
+          if (recipient.endsWith('.eth')) {
+            let exists = await $web3.eth.ens.recordExists(recipient);
+            if (exists) {
+              let resolved = await $web3.eth.ens.getAddress(recipient);
+              recipients.push(resolved);
+            } else {
+              errorMessage = `Invalid recipient ENS name; does not exist: ${recipient}`;
+              checksPending = false;
+              return
+            }
+          } else {
+            $web3.utils.toChecksumAddress(recipient);
+            recipients.push(recipient);
+          }
+          progress.set(Math.round(i / lines.length));
+        } catch(e) {
+          errorMessage = `Invalid recipient address supplied (line ${i}): ${e}`;
           checksPending = false;
-
           return;
         }
 
