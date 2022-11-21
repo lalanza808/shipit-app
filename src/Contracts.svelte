@@ -1,5 +1,5 @@
 <script>
-  import { writable } from 'svelte/store';
+  // import { CONTRACT } from '$env/dynamic/private';
   import { tweened } from 'svelte/motion';
   import { cubicOut } from 'svelte/easing';
   import { defaultEvmStores as evm, selectedAccount, contracts, web3 } from 'svelte-web3';
@@ -11,7 +11,12 @@
     duration: 800,
     easing: cubicOut
   });
-  const shipit = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
+  let shipit = '';
+  if (import.meta.env.DEV) {
+    shipit = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
+  } else {
+    shipit = '0x76Ae5B6E75F6e05BcaD1028F78A83f974fc96A8B';
+  }
   let errorMessage = '';
   let successMessage = '';
   let contractAddress = '';
@@ -52,6 +57,8 @@
       await $contracts.nft.methods.setApprovalForAll(shipit, true).send({from: $selectedAccount});
       contractApproved = true;
       approvalRequired = false;
+      approvalPending = false;
+      clearMessages();
     } catch(e) {
       errorMessage = `Failed to approve contract: ${e.message}`;
       approvalPending = false;
@@ -66,6 +73,7 @@
       contractApproved = false;
       approvalRequired = false;
       revokeRequired = false;
+      revokePending = false;
       clearMessages();
     } catch(e) {
       errorMessage = `Failed to revoke contract: ${e.message}`;
@@ -239,6 +247,7 @@
       if (res.status) {
         document.getElementById('recipientInfo').value = '';
         clearMessages();
+        transferPending = false;
         successMessage = `Success! tx ${res.transactionHash}`;
         window.scrollTo(0, document.body.scrollHeight);
       } else {
