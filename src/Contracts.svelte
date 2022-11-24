@@ -3,8 +3,10 @@
   import { cubicOut } from 'svelte/easing';
   import { defaultEvmStores as evm, selectedAccount, contracts, web3 } from 'svelte-web3';
   import IERC721 from '@openzeppelin/contracts/build/contracts/IERC721.json';
+  import IERC721Enumerable from '@openzeppelin/contracts/build/contracts/IERC721Enumerable.json';
   import IERC1155 from '@openzeppelin/contracts/build/contracts/IERC1155.json';
   import ShipIt from './lib/shipit.json';
+    import Providers from './Providers.svelte';
 
   const progress = tweened(0, {
     duration: 800,
@@ -27,7 +29,9 @@
   let approvalRequired = false;
   let revokeRequired = false;
   let revokePending = false;
+  let enumeratePending = false;
   let gasCalculation = [];
+  let enumeratedTokens = [];
   let selectedStandard = 1;
   let gasPrice = 0;
   let gasLimit = 0;
@@ -48,6 +52,27 @@
     checksPending = false;
     errorMessage = '';
     successMessage = '';
+  }
+
+  function setupContracts() {
+    if (selectedStandard == 1) {
+      evm.attachContract('nft', contractAddress, IERC721.abi);
+      evm.attachContract('nftenum', contractAddress, IERC721Enumerable.abi);
+    } else {
+      evm.attachContract('nft', contractAddress, IERC1155.abi);
+      isERC1155 = true;
+    }
+  }
+
+  const enumerateTokens = async () => {
+    enumeratePending = true;
+    setupContracts();
+    let bal = await $contracts.nftenum.methods.balanceOf($selectedAccount).call();
+    for(let i = 0; i < bal; i++) {
+      let tokenId = await $contracts.nftenum.methods.tokenOfOwnerByIndex($selectedAccount, i);
+      enumeratedTokens.push(tokenId);
+    }
+    enumeratePending = false;
   }
 
   const approveShipIt = async () => {
@@ -91,14 +116,7 @@
     isERC1155 = false;
     checksPending = true;
     errorMessage = '';
-
-    // Determine ABI
-    if (selectedStandard == 1) {
-      evm.attachContract('nft', contractAddress, IERC721.abi);
-    } else {
-      evm.attachContract('nft', contractAddress, IERC1155.abi);
-      isERC1155 = true;
-    }
+    setupContracts();
     
     // Check the contract is valid
     try {
@@ -321,11 +339,19 @@
 {#if $selectedAccount}
   <form>
     <div class="row">
-      <div class="eight columns">
+      <div class="six columns">
         <label for="contractAddress">Contract Address</label>
         <input class="u-full-width" type="text" placeholder="0x..." id="contractAddress" bind:value={contractAddress}>
       </div>
-      <div class="four columns">
+      {#if contractAddress}
+      <div class="two columns">
+        <label for="findTokens">Enumerate</label>
+        <button id="findTokens" class="button" disabled={enumeratePending} on:click|preventDefault={enumerateTokens}>
+          {#if enumeratePending}finding...{:else}Find Tokens{/if}
+        </button>
+      </div>
+      {/if}
+      <div class="two columns">
         <label for="tokenStandard">Token Standard</label>
         <select class="u-full-width" id="tokenStandard" bind:value={selectedStandard} on:change={clearMessages}>
           {#each tokenStandards as s}
@@ -386,6 +412,14 @@
       {/if}
       {#if successMessage}
         <p class="successMessage">{successMessage}</p>
+      {/if}
+      {#if enumeratedTokens.length > 0}
+      <p>Found the {enumeratedTokens.length} tokens owned by {$selectedAccount}:</p>
+      <ul>
+        {#each enumeratedTokens as t, i}
+          <li>{t}</li>
+        {/each}
+      </ul>
       {/if}
     </div>
   </div>
