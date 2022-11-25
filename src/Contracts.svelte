@@ -67,6 +67,7 @@
 
   const enumerateTokens = async () => {
     enumeratePending = true;
+    enumeratedTokens = [];
     try {
       setupContracts();
     } catch(e) {
@@ -80,10 +81,10 @@
         enumeratedTokens.push(Number(tokenId));
       }
     } catch(e) {
-      console.log(e);
-      return false;
+      errorMessage = 'Unable to enumerate tokens for this contract.';
     }
     enumeratePending = false;
+    enumeratedTokens = enumeratedTokens;
   }
 
   const approveShipIt = async () => {
