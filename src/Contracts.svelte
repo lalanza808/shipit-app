@@ -20,6 +20,7 @@
   }
   let errorMessage = '';
   let successMessage = '';
+  let infoMessage = '';
   let contractAddress = '';
   let contractApproved = false;
   let checked = false;
@@ -66,11 +67,21 @@
 
   const enumerateTokens = async () => {
     enumeratePending = true;
-    setupContracts();
-    let bal = await $contracts.nftenum.methods.balanceOf($selectedAccount).call();
-    for(let i = 0; i < bal; i++) {
-      let tokenId = await $contracts.nftenum.methods.tokenOfOwnerByIndex($selectedAccount, i);
-      enumeratedTokens.push(tokenId);
+    try {
+      setupContracts();
+    } catch(e) {
+      console.log(`error: ${e}`);
+      return false;
+    }
+    try {
+      let bal = await $contracts.nftenum.methods.balanceOf($selectedAccount).call();
+      for (let i = 0; i < bal; i++) {
+        let tokenId = await $contracts.nftenum.methods.tokenOfOwnerByIndex($selectedAccount, i).call();
+        enumeratedTokens.push(Number(tokenId));
+      }
+    } catch(e) {
+      console.log(e);
+      return false;
     }
     enumeratePending = false;
   }
@@ -361,14 +372,14 @@
         <input class="u-full-width" type="text" placeholder="0x..." id="contractAddress" bind:value={contractAddress} on:change={checkSlug}>
       </div>
       {#if contractAddress}
-      <div class="two columns">
+      <div class="three columns">
         <label for="findTokens">Enumerate</label>
         <button id="findTokens" class="button" disabled={enumeratePending} on:click|preventDefault={enumerateTokens}>
           {#if enumeratePending}finding...{:else}Find Tokens{/if}
         </button>
       </div>
       {/if}
-      <div class="two columns">
+      <div class="three columns">
         <label for="tokenStandard">Token Standard</label>
         <select class="u-full-width" id="tokenStandard" bind:value={selectedStandard} on:change={clearMessages}>
           {#each tokenStandards as s}
@@ -430,10 +441,13 @@
       {#if successMessage}
         <p class="successMessage">{successMessage}</p>
       {/if}
-      {#if enumeratedTokens.length > 0}
-      <p>Found the {enumeratedTokens.length} tokens owned by {$selectedAccount}:</p>
+      {#if infoMessage}
+        <p class="infoMessage">{infoMessage}</p>
+      {/if}
+      {#if enumeratedTokens.length}
+      <p>Found {enumeratedTokens.length} tokens owned by {$selectedAccount}:</p>
       <ul>
-        {#each enumeratedTokens as t, i}
+        {#each enumeratedTokens as t}
           <li>{t}</li>
         {/each}
       </ul>
