@@ -332,6 +332,23 @@
     }
     gasCalculation = gasCalculation; // trigger recheck
   }
+
+  const checkSlug = async() => {
+    if (!contractAddress.startsWith('0x')) {
+      try {
+        await fetch(`https://api.opensea.io/api/v1/collection/${contractAddress}`)
+          .then((response) => response.json())
+          .then((data) => {
+            let a = data['collection']['primary_asset_contracts'][0]['address'];
+            if (a) {
+              contractAddress = a;
+            }
+          });
+      } catch(e) {
+        console.log(`failed to convert collection slug to contract address: ${e}`);
+      }
+    }
+  }
 </script>
 
 
@@ -340,8 +357,8 @@
   <form>
     <div class="row">
       <div class="six columns">
-        <label for="contractAddress">Contract Address</label>
-        <input class="u-full-width" type="text" placeholder="0x..." id="contractAddress" bind:value={contractAddress}>
+        <label for="contractAddress">Contract Address / Collection Slug</label>
+        <input class="u-full-width" type="text" placeholder="0x..." id="contractAddress" bind:value={contractAddress} on:change={checkSlug}>
       </div>
       {#if contractAddress}
       <div class="two columns">
